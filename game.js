@@ -2,6 +2,7 @@
 
 let player, cursors, score = 0, scoreText, gameOver = false;
 let foods, goblins;
+let resetKey;
 
 // Tone.js audio globals
 let masterVolume, bgMusic, collectSfx, gameOverSfx;
@@ -85,8 +86,12 @@ function create() {
     // Create goblin enemies
     goblins = this.physics.add.group();
     for(let i = 0; i < 4; i++) {
-        const x = Phaser.Math.Between(100, 700);
-        const y = Phaser.Math.Between(100, 500);
+        let x, y;
+        do {
+            x = Phaser.Math.Between(100, 700);
+            y = Phaser.Math.Between(100, 500);
+        } while (Phaser.Math.Distance.Between(x, y, player.x, player.y) < 100);
+        
         const goblin = goblins.create(x, y, 'goblin');
         goblin.setScale(1.5);
         goblin.setVelocity(Phaser.Math.Between(-100, 100), Phaser.Math.Between(-100, 100));
@@ -96,6 +101,9 @@ function create() {
     
     // WASD controls
     cursors = this.input.keyboard.addKeys('W,S,A,D');
+    
+    // Reset key
+    resetKey = this.input.keyboard.addKey('R');
     
     // Score
     scoreText = this.add.text(16, 16, 'Score: 0', {
@@ -113,6 +121,15 @@ function create() {
     this.gameOverText.setOrigin(0.5);
     this.gameOverText.setVisible(false);
     
+    // Reset instruction text (hidden initially)
+    this.resetText = this.add.text(400, 370, 'Press R to Reset', {
+        fontSize: '24px',
+        fill: '#ffffff',
+        fontFamily: 'Courier New'
+    });
+    this.resetText.setOrigin(0.5);
+    this.resetText.setVisible(false);
+    
     // Collisions
     this.physics.add.overlap(player, foods, collectFood, null, this);
     this.physics.add.overlap(player, goblins, hitGoblin, null, this);
@@ -129,7 +146,12 @@ function create() {
 }
 
 function update() {
-    if (gameOver) return;
+    if (gameOver) {
+        if (resetKey.isDown) {
+            resetGame.call(this);
+        }
+        return;
+    }
     
     // Player movement (top-down)
     const speed = 200;
@@ -179,11 +201,65 @@ function hitGoblin(player, goblin) {
     player.setTint(0xff0000);
     gameOver = true;
     this.gameOverText.setVisible(true);
+    this.resetText.setVisible(true);
     
     // Stop music and play game over sound
     if (bgMusic) bgMusic.stop();
     if (gameOverSfx) {
         gameOverSfx.triggerAttackRelease('A3', '4n');
+    }
+}
+
+function resetGame() {
+    // Reset game state
+    gameOver = false;
+    score = 0;
+    
+    // Clear existing objects
+    foods.clear(true, true);
+    goblins.clear(true, true);
+    
+    // Reset player
+    player.clearTint();
+    player.setPosition(400, 300);
+    player.setVelocity(0, 0);
+    
+    // Respawn food
+    for(let i = 0; i < 8; i++) {
+        const x = Phaser.Math.Between(50, 750);
+        const y = Phaser.Math.Between(50, 550);
+        const foodType = ['banana', 'apple', 'pineapple'][Phaser.Math.Between(0, 2)];
+        const food = foods.create(x, y, foodType);
+        food.setScale(1.5);
+        food.setTint(Phaser.Display.Color.GetColor32(200 + Phaser.Math.Between(0, 55), 200 + Phaser.Math.Between(0, 55), 200 + Phaser.Math.Between(0, 55)));
+    }
+    
+    // Respawn goblins away from player
+    for(let i = 0; i < 4; i++) {
+        let x, y;
+        do {
+            x = Phaser.Math.Between(100, 700);
+            y = Phaser.Math.Between(100, 500);
+        } while (Phaser.Math.Distance.Between(x, y, player.x, player.y) < 100);
+        
+        const goblin = goblins.create(x, y, 'goblin');
+        goblin.setScale(1.5);
+        goblin.setVelocity(Phaser.Math.Between(-100, 100), Phaser.Math.Between(-100, 100));
+        goblin.setBounce(1);
+        goblin.setCollideWorldBounds(true);
+    }
+    
+    // Update UI
+    scoreText.setText('Score: 0');
+    this.gameOverText.setVisible(false);
+    this.resetText.setVisible(false);
+    
+    // Resume physics
+    this.physics.resume();
+    
+    // Restart background music
+    if (bgMusic && Tone.Transport.state !== 'started') {
+        Tone.Transport.start();
     }
 }
 
