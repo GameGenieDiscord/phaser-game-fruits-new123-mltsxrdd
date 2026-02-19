@@ -3,6 +3,9 @@
 let player, cursors, score = 0, scoreText, gameOver = false;
 let foods, goblins;
 
+// Tone.js audio globals
+let masterVolume, bgMusic, collectSfx, gameOverSfx;
+
 function preload() {
     // Create pixel-art style textures programmatically
     const graphics = this.make.graphics({ x: 0, y: 0, add: false });
@@ -120,6 +123,9 @@ function create() {
         fill: '#ffffff',
         fontFamily: 'Courier New'
     });
+    
+    // Initialize audio
+    initAudio();
 }
 
 function update() {
@@ -154,6 +160,11 @@ function collectFood(player, food) {
     score += 10;
     scoreText.setText('Score: ' + score);
     
+    // Play collect sound
+    if (collectSfx) {
+        collectSfx.triggerAttackRelease('C5', '8n');
+    }
+    
     // Spawn new food
     const x = Phaser.Math.Between(50, 750);
     const y = Phaser.Math.Between(50, 550);
@@ -168,6 +179,46 @@ function hitGoblin(player, goblin) {
     player.setTint(0xff0000);
     gameOver = true;
     this.gameOverText.setVisible(true);
+    
+    // Stop music and play game over sound
+    if (bgMusic) bgMusic.stop();
+    if (gameOverSfx) {
+        gameOverSfx.triggerAttackRelease('A3', '4n');
+    }
+}
+
+function initAudio() {
+    // Master volume at -30 dB (very quiet)
+    masterVolume = new Tone.Volume(-30).toDestination();
+    
+    // Background music synth
+    bgMusic = new Tone.PolySynth(Tone.Synth).connect(masterVolume);
+    bgMusic.set({
+        oscillator: { type: 'triangle' },
+        envelope: { attack: 0.1, decay: 0.2, sustain: 0.3, release: 0.5 }
+    });
+    
+    // Sound effect synths
+    collectSfx = new Tone.Synth({
+        oscillator: { type: 'sine' },
+        envelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.1 }
+    }).connect(masterVolume);
+    
+    gameOverSfx = new Tone.Synth({
+        oscillator: { type: 'sawtooth' },
+        envelope: { attack: 0.01, decay: 0.3, sustain: 0, release: 0.5 }
+    }).connect(masterVolume);
+    
+    // Start background music loop
+    const melody = ['C4', 'E4', 'G4', 'C5', 'G4', 'E4', 'C4'];
+    let noteIndex = 0;
+    
+    Tone.Transport.scheduleRepeat((time) => {
+        bgMusic.triggerAttackRelease(melody[noteIndex % melody.length], '8n', time);
+        noteIndex++;
+    }, '4n');
+    
+    Tone.Transport.start();
 }
 
 // Game configuration
